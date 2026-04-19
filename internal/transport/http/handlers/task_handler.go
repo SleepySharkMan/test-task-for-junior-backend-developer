@@ -3,8 +3,10 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -31,6 +33,41 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		Title:       req.Title,
 		Description: req.Description,
 		Status:      req.Status,
+		Recurrence:  toDomainRecurrence(req.Recurrence),
+		DueDate:     req.DueDate,
+	})
+	if err != nil {
+		writeUsecaseError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newTaskDTO(created))
+}
+
+func (h *TaskHandler) CreateOccurrence(w http.ResponseWriter, r *http.Request) {
+	raw := mux.Vars(r)["parent_id"]
+	if raw == "" {
+		writeError(w, http.StatusBadRequest, errors.New("missing parent id"))
+		return
+	}
+
+	pid, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || pid <= 0 {
+		writeError(w, http.StatusBadRequest, errors.New("invalid parent id"))
+		return
+	}
+
+	var req taskMutationDTO
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	created, err := h.usecase.CreateOccurrence(r.Context(), pid, taskusecase.OccurrenceInput{
+		Title:       req.Title,
+		Description: req.Description,
+		Status:      req.Status,
+		DueDate:     req.DueDate,
 	})
 	if err != nil {
 		writeUsecaseError(w, err)
@@ -73,6 +110,8 @@ func (h *TaskHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Title:       req.Title,
 		Description: req.Description,
 		Status:      req.Status,
+		Recurrence:  toDomainRecurrence(req.Recurrence),
+		DueDate:     req.DueDate,
 	})
 	if err != nil {
 		writeUsecaseError(w, err)
@@ -147,6 +186,8 @@ func writeUsecaseError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, err)
 	case errors.Is(err, taskusecase.ErrInvalidInput):
 		writeError(w, http.StatusBadRequest, err)
+	case errors.Is(err, taskdomain.ErrAlreadyExists) || strings.Contains(err.Error(), "duplicate") || strings.Contains(err.Error(), "ux_tasks_parent_due_date") || strings.Contains(err.Error(), "23505"):
+		writeError(w, http.StatusBadRequest, fmt.Errorf("occurrence already exists"))
 	default:
 		writeError(w, http.StatusInternalServerError, err)
 	}

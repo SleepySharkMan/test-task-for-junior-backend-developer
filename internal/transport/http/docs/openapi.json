@@ -59,6 +59,33 @@
         }
       }
     },
+    "/api/v1/tasks/{parent_id}/occurrences": {
+      "post": {
+        "tags": ["Tasks"],
+        "summary": "Create occurrence for parent task",
+        "parameters": [
+          {
+            "name": "parent_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "format": "int64", "minimum": 1 }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateOccurrenceRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created occurrence", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Task" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/api/v1/tasks/{id}": {
       "get": {
         "tags": ["Tasks"],
@@ -170,6 +197,8 @@
             "enum": ["new", "in_progress", "done"],
             "example": "new"
           }
+          ,
+          "recurrence": { "$ref": "#/components/schemas/Recurrence" }
         }
       },
       "UpdateTaskRequest": {
@@ -189,6 +218,8 @@
             "enum": ["new", "in_progress", "done"],
             "example": "in_progress"
           }
+          ,
+          "recurrence": { "$ref": "#/components/schemas/Recurrence" }
         }
       },
       "Task": {
@@ -214,6 +245,50 @@
             "type": "string",
             "format": "date-time",
             "example": "2026-03-24T00:00:00Z"
+          }
+          ,
+          "recurrence": { "$ref": "#/components/schemas/Recurrence" },
+          "last_scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-04-19T00:00:00Z",
+            "description": "When the recurrence was last expanded into occurrences"
+          }
+          ,
+          "parent_id": { "type": "integer", "format": "int64", "example": 1 },
+          "due_date": { "type": "string", "format": "date", "example": "2026-05-01", "description": "Date for occurrence (if task is an occurrence)" }
+        }
+      },
+      "Recurrence": {
+        "type": "object",
+        "description": "Recurrence (periodicity) settings for a task. Optional.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["none", "daily", "monthly", "specific_dates", "even", "odd"],
+            "example": "daily"
+          },
+          "interval": {
+            "type": "integer",
+            "description": "For `daily` recurrence: every N days (>=1)",
+            "example": 1
+          },
+          "month_days": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 1, "maximum": 31 },
+            "description": "For `monthly`: days of month (1..31). If 31 is specified it means last day of month when month has fewer days.",
+            "example": [1,15]
+          },
+          "dates": {
+            "type": "array",
+            "items": { "type": "string", "format": "date" },
+            "description": "For `specific_dates`: list of ISO dates (YYYY-MM-DD)",
+            "example": ["2026-05-01","2026-06-01"]
+          },
+          "even_odd": {
+            "type": "string",
+            "description": "Helper field, not required when type is `even` or `odd`",
+            "example": "even"
           }
         }
       },
